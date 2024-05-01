@@ -6,8 +6,12 @@ import org.apache.http.client.HttpClient;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.http.client.methods.HttpPost;
@@ -19,26 +23,26 @@ public class CrptApi {
   private static final String TEST_SIGNATURE = "111test-signature111";
   private final TimeUnit timeUnit;
   private final int requestLimit;
-  private int requestCount;
-  private long lastRequestTimeMillis;
+  private final AtomicInteger requestCount = new AtomicInteger(0);
+  private final AtomicLong lastRequestTimeMillis;
 
   public CrptApi(TimeUnit timeUnit, int requestLimit) {
     this.timeUnit = timeUnit;
     this.requestLimit = requestLimit;
-    this.lastRequestTimeMillis = System.currentTimeMillis();
+    this.lastRequestTimeMillis = new AtomicLong(System.currentTimeMillis());
   }
 
-  public synchronized void callApi() {
+  public synchronized void callApi(int thread) {
     long currentTimeMillis = System.currentTimeMillis();
-    long elapsedTime = currentTimeMillis - lastRequestTimeMillis;
+    long elapsedTime = currentTimeMillis - lastRequestTimeMillis.get();
 
     if (elapsedTime >= timeUnit.toMillis(1)) {
-      requestCount = 0;
-      lastRequestTimeMillis = currentTimeMillis;
+      requestCount.set(0);
+      lastRequestTimeMillis.set(currentTimeMillis);
     }
 
-    if (requestCount >= requestLimit) {
-      long sleepTime = (lastRequestTimeMillis + timeUnit.toMillis(1)) - currentTimeMillis;
+    if (requestCount.get() >= requestLimit) {
+      long sleepTime = (lastRequestTimeMillis.get() + timeUnit.toMillis(1)) - currentTimeMillis;
       if (sleepTime > 0) {
         try {
           Thread.sleep(sleepTime);
@@ -48,8 +52,8 @@ public class CrptApi {
         }
       }
 
-      requestCount = 0;
-      lastRequestTimeMillis = System.currentTimeMillis();
+      requestCount.set(0);
+      lastRequestTimeMillis.set(System.currentTimeMillis());
     }
 
     Document document;
@@ -61,7 +65,8 @@ public class CrptApi {
       throw new RuntimeException("Failed serialize Document data", e);
     }
     ApiProvider.createDocument(document, TEST_SIGNATURE);
-    requestCount++;
+    requestCount.getAndIncrement();
+    System.out.println(thread + "  THREAD, called " + LocalTime.now());
   }
 
   public static class ApiProvider {
@@ -150,9 +155,12 @@ public class CrptApi {
   }
 
   public static void main(String[] args) {
-    CrptApi crptApi = new CrptApi(TimeUnit.MINUTES, 2);
+    CrptApi crptApi = new CrptApi(TimeUnit.MINUTES, 3);
     for (int i = 0; i < 10; i++) {
-      crptApi.callApi();
+      int finalI = i;
+      new Thread(() -> {
+        crptApi.callApi(finalI);
+      }).start();
     }
   }
 }
