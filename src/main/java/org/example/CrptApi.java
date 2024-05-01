@@ -32,7 +32,7 @@ public class CrptApi {
     this.lastRequestTimeMillis = new AtomicLong(System.currentTimeMillis());
   }
 
-  public synchronized void callApi(int thread) {
+  public synchronized void callApi() {
     long currentTimeMillis = System.currentTimeMillis();
     long elapsedTime = currentTimeMillis - lastRequestTimeMillis.get();
 
@@ -66,7 +66,6 @@ public class CrptApi {
     }
     ApiProvider.createDocument(document, TEST_SIGNATURE);
     requestCount.getAndIncrement();
-    System.out.println(thread + "  THREAD, called " + LocalTime.now());
   }
 
   public static class ApiProvider {
@@ -157,10 +156,7 @@ public class CrptApi {
   public static void main(String[] args) {
     CrptApi crptApi = new CrptApi(TimeUnit.MINUTES, 3);
     for (int i = 0; i < 10; i++) {
-      int finalI = i;
-      new Thread(() -> {
-        crptApi.callApi(finalI);
-      }).start();
+      new Thread(crptApi::callApi).start();
     }
   }
 }
