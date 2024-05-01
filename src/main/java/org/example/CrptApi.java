@@ -28,7 +28,7 @@ public class CrptApi {
     this.lastRequestTimeMillis = System.currentTimeMillis();
   }
 
-  public synchronized void callApi() throws InterruptedException {
+  public synchronized void callApi() {
     long currentTimeMillis = System.currentTimeMillis();
     long elapsedTime = currentTimeMillis - lastRequestTimeMillis;
 
@@ -40,7 +40,12 @@ public class CrptApi {
     if (requestCount >= requestLimit) {
       long sleepTime = (lastRequestTimeMillis + timeUnit.toMillis(1)) - currentTimeMillis;
       if (sleepTime > 0) {
-        Thread.sleep(sleepTime);
+        try {
+          Thread.sleep(sleepTime);
+        }
+        catch (InterruptedException e) {
+          throw new RuntimeException(e);
+        }
       }
 
       requestCount = 0;
@@ -141,6 +146,13 @@ public class CrptApi {
       private String uitCode;
       @JsonProperty("uitu_code")
       private String uituCode;
+    }
+  }
+
+  public static void main(String[] args) {
+    CrptApi crptApi = new CrptApi(TimeUnit.MINUTES, 2);
+    for (int i = 0; i < 10; i++) {
+      crptApi.callApi();
     }
   }
 }
